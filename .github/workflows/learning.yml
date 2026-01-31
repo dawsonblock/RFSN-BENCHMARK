@@ -1,0 +1,84 @@
+name: RFSN Learning Loop
+
+on:
+    workflow_dispatch:
+        inputs:
+            dataset:
+                description: "SWE-bench dataset subset"
+                required: false
+                default: "lite"
+                type: choice
+                options:
+                    - lite
+                    - verified
+                    - full
+            workers:
+                description: "Number of parallel workers"
+                required: false
+                default: "4"
+                type: string
+    pull_request:
+        branches: [main]
+
+concurrency:
+    group: rfsn-learning-${{ github.ref }}
+    cancel-in-progress: false # Don't cancel learning runs
+
+jobs:
+    learn:
+        runs-on: ubuntu-latest
+        timeout-minutes: 120
+
+        steps:
+            - uses: actions/checkout@v4
+
+            - name: Set up Python
+              uses: actions/setup-python@v5
+              with:
+                  python-version: "3.11"
+                  cache: "pip"
+
+            - name: Install dependencies
+              run: |
+                  pip install -e ".[dev]"
+
+            - name: Restore learning state
+              uses: actions/cache@v4
+              with:
+                  path: .rfsn_state
+                  key: rfsn-learning-${{ github.ref_name }}-${{ github.run_number }}
+                  restore-keys: |
+                      rfsn-learning-${{ github.ref_name }}-
+                      rfsn-learning-main-
+                      rfsn-learning-
+
+            - name: Run agent episode
+              env:
+                  RFSN_BENCH_STRICT: "1"
+                  DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+                  GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+              run: |
+                  python -c "
+                  from orchestrator.loop_v2 import get_orchestrator_stats
+                  import json
+
+                  stats = get_orchestrator_stats()
+                  print('=== Orchestrator State ===')
+                  print(json.dumps(stats, indent=2))
+                  "
+
+            - name: Save learning state
+              uses: actions/cache/save@v4
+              if: always()
+              with:
+                  path: .rfsn_state
+                  key: rfsn-learning-${{ github.ref_name }}-${{ github.run_number }}
+
+            - name: Upload learning artifacts
+              uses: actions/upload-artifact@v4
+              if: always()
+              with:
+                  name: rfsn-learning-state
+                  path: |
+                      .rfsn_state/
+                  retention-days: 30
