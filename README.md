@@ -6,7 +6,28 @@
 
 > **Safety-first autonomous code repair with upstream learning.**
 
-RFSN Benchmark is a complete agent architecture for SWE-bench-class autonomous code repair. It combines a **deterministic safety kernel** (the gate) with **upstream intelligence modules** (planner, search, learning, retrieval) that never touch the gate.
+RFSN Benchmark is a complete agent architecture for SWE-bench-class autonomous code repair. It combines a **deterministic safety kernel** (PlanGate) with **upstream intelligence modules** (planner, search, learning, retrieval) that never touch the gate.
+
+## ⚠️ Important: Unified Architecture
+
+This repository uses a **single authority path**:
+
+```
+Dataset → Episode Runner → Gate Adapter → PlanGate (kernel)
+              ↑
+         Upstream Intelligence (propose_v2)
+              ↑
+    ┌─────────┴─────────────┐
+    │                       │
+Repair Classification   Skill Routing
+(taxonomy.py)          (router.py)
+    │                       │
+Failure Retrieval      Planner Selection
+(failure_index.py)     (thompson.py)
+```
+
+**There is only ONE gate**: `rfsn_controller/gates/plan_gate.py`  
+**There is only ONE eval path**: `eval/run_v2.py` → `orchestrator/episode_runner.py`
 
 ## Architecture
 
@@ -21,47 +42,70 @@ RFSN Benchmark is a complete agent architecture for SWE-bench-class autonomous c
 │         └─────────────────┴────────┬────────┴─────────────────┘         │
 │                                    │                                    │
 │                          ┌─────────▼─────────┐                          │
-│                          │   ORCHESTRATOR    │                          │
-│                          │   (loop_v2.py)    │                          │
+│                          │   PROPOSE V2      │                          │
+│                          │ (agent/propose_v2)│                          │
+│                          └─────────┬─────────┘                          │
+│                                    │                                    │
+│                          ┌─────────▼─────────┐                          │
+│                          │ EPISODE RUNNER    │                          │
+│                          │ (orchestrator/)   │                          │
 │                          └─────────┬─────────┘                          │
 └───────────────────────────────────┬─────────────────────────────────────┘
                                     │
                                     ▼  PROPOSALS ONLY
 ┌─────────────────────────────────────────────────────────────────────────┐
 │                        DETERMINISTIC KERNEL                             │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐  ┌─────────────┐  │
-│  │  Plan Gate   │  │ Self-Critique│  │  Controller  │  │   Sandbox   │  │
-│  │  (validate)  │──│   (rubric)   │──│   (serial)   │──│  (execute)  │  │
-│  └──────────────┘  └──────────────┘  └──────────────┘  └─────────────┘  │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐                   │
+│  │ GATE ADAPTER │──│   PLAN GATE  │──│ Self-Critique│                   │
+│  │(single route)│  │ (the kernel) │  │   (rubric)   │                   │
+│  └──────────────┘  └──────────────┘  └──────────────┘                   │
 │                                                                         │
 │  ✓ Command allowlist    ✓ Path restrictions    ✓ No shell injection    │
 │  ✓ Deterministic        ✓ Fail-closed         ✓ Append-only logging    │
 └─────────────────────────────────────────────────────────────────────────┘
 ```
 
-## What This Repository Contains
+## Critical: SWE-bench Correctness
 
-### Deterministic Kernel (Gate)
+This implementation follows the **correct SWE-bench procedure**:
 
-- **`rfsn_controller/gates/`** — Plan validation, command filtering, policy enforcement
-- **`rfsn_controller/gates/self_critique.py`** — 22-check pre-execution rubric
-- **`cgw_ssl_guard/`** — Zero-trust execution sandbox
+1. **Clone repo** at `base_commit`
+2. **Apply `test_patch`** (adds failing tests) - **MUST succeed or task is INVALID**
+3. **Run tests** (baseline - should fail)
+4. **Generate patches** via upstream intelligence
+5. **Gate each proposal** through PlanGate
+6. **Apply and test** - accept first passing result
+7. **Reset between attempts** to clean state
 
-### Upstream Intelligence (Never Touches Gate)
+```python
+# The correct flow is in orchestrator/episode_runner.py
+from orchestrator import run_one_task
 
-- **`planner/`** — Multi-step repair planning with formal spec
-- **`search/`** — Beam search over patch candidates
-- **`learning/`** — Thompson sampling bandit for planner selection
-- **`repair/`** — Bug taxonomy and failure classification
-- **`skills/`** — Repo-specific prompt routing
-- **`retrieval/`** — Failure index with embedding similarity
-- **`orchestrator/`** — Full agent loop (the engine)
-- **`memory/`** — Episode-level state persistence
+result = run_one_task(
+    task={"instance_id": "...", "repo": "...", "base_commit": "...", "test_patch": "..."},
+    repo_url="https://github.com/owner/repo.git",
+    llm_patch_fn=your_llm_function,
+)
+```
 
-### Benchmarking
+## Datasets (STRICT MODE)
 
-- **`eval/`** — SWE-bench evaluation harness
-- **`.github/workflows/`** — CI with learning persistence
+**Strict mode is ON by default.** Missing datasets cause hard failure.
+
+```bash
+# Required: place ONE of these in datasets/
+datasets/swebench_lite.jsonl
+datasets/swebench_verified.jsonl
+datasets/swebench_full.jsonl
+
+# Copy a dataset in
+python scripts/fetch_swebench.py /path/to/swebench_lite.jsonl
+
+# Verify datasets are present
+python scripts/verify_datasets.py
+```
+
+Set `RFSN_STRICT_BENCH=0` for local development without datasets.
 
 ## Quick Start
 
@@ -72,160 +116,147 @@ pip install -e ".[dev]"
 # Run tests
 pytest tests/ -v
 
-# Run a single SWE-bench task
-python -m eval.run --task-id "django__django-11099"
-
-# Run with learning
-python -c "
-from orchestrator import run_episode_v2
-from learning import Outcome
-
-# Define your patch generator and executor
-result = run_episode_v2(
-    task={'repo': 'django/django', 'test_output': '...', 'failing_files': ['...']},
-    patch_generator=your_patch_generator,
-    executor=your_executor,
-)
-"
+# Run eval (requires dataset + LLM API keys)
+python -m eval.run_v2 --dataset swebench_lite.jsonl --max-tasks 5
 ```
 
 ## Modules
 
-### Planner (`planner/`)
+### eval/ - Evaluation Infrastructure
 
-Formal repair planning with structured output:
+- `strictness.py` - Strict mode enforcement
+- `dataset_loader.py` - SWE-bench dataset loading
+- `repo_setup.py` - Repository cloning and patch application
+- `test_cmd.py` - Test command derivation
+- `run_v2.py` - Unified eval entry point
 
-```python
-from planner import generate_plan, Plan, RepairStep
+### agent/ - Proposal Pipeline
 
-plan = generate_plan(task, retrieval_context)
-# Returns Plan with steps, confidence, metadata
-```
+- `gate_adapter.py` - Single gate routing (wraps PlanGate)
+- `propose_v2.py` - Upstream intelligence integration
 
-### Search (`search/`)
+### orchestrator/ - Episode Execution
 
-Beam search for patch exploration:
+- `episode_runner.py` - Single authority loop
+- `loop_v2.py` - Legacy loop (being deprecated)
 
-```python
-from search import BeamSearch, search_patches
+### planner/ - Repair Planning
 
-candidates = search_patches(plan, patch_generator, width=3)
-```
+- `spec.py` - Plan and RepairStep types
+- `planner.py` - Multi-step plan generation
 
-### Learning (`learning/`)
+### search/ - Patch Exploration
 
-Thompson sampling for planner selection:
+- `beam.py` - Beam search implementation
+- `patch_search.py` - Search strategies
 
-```python
-from learning import ThompsonBandit, PlannerSelector
+### learning/ - Bandit Selection
 
-selector = PlannerSelector()
-planner_name = selector.pick()  # Samples from posterior
-selector.update(planner_name, success=True)
-```
+- `thompson.py` - Thompson sampling
+- `planner_bandit.py` - Multi-planner selection
+- `outcomes.py` - Outcome scoring
 
-### Repair (`repair/`)
+### repair/ - Bug Classification
 
-Bug taxonomy and failure classification:
+- `taxonomy.py` - 16-category repair ontology
+- `classifier.py` - Failure classification
 
-```python
-from repair import classify_failure, TAXONOMY
+### skills/ - Repo-Specific Routing
 
-hypotheses = classify_failure(test_output, failing_files)
-# Returns ranked RepairHypothesis objects
-```
+- `heads.py` - Skill head definitions
+- `router.py` - Skill selection
 
-### Skills (`skills/`)
+### retrieval/ - Memory
 
-Repo-specific prompt routing:
+- `failure_index.py` - Persistent failure patterns
+- `recall.py` - Context building for prompts
 
-```python
-from skills import select_skill_heads, merge_skill_constraints
+### rfsn_controller/ - The Kernel
 
-heads = select_skill_heads({'repo_fingerprint': 'django pandas'}, k=2)
-constraints = merge_skill_constraints(heads)
-```
+- `gates/plan_gate.py` - **THE gate** (single source of truth)
+- `gates/self_critique.py` - 22-check rubric
+- `exec_utils.py` - Hardened execution
 
-### Retrieval (`retrieval/`)
+## Your LLM Patch Function
 
-Failure index with similarity search:
-
-```python
-from retrieval import FailureIndex, build_retrieval_context
-
-index = FailureIndex()
-context = build_retrieval_context(repo, test_output, index)
-# Returns similar past failures for prompting
-```
-
-### Orchestrator (`orchestrator/`)
-
-The full agent loop:
+You must implement `llm_patch_fn(plan, context)`:
 
 ```python
-from orchestrator import run_episode_v2
-
-success = run_episode_v2(task, patch_generator, executor)
+def your_llm_patch_fn(plan, context) -> list[dict]:
+    """
+    Generate patch candidates from a plan.
+    
+    Args:
+        plan: Plan object with steps, metadata
+        context: Dict with hypotheses, skill_heads, retrieval
+        
+    Returns:
+        List of dicts, each with:
+            - patch_text: Unified diff
+            - summary: Short description
+    """
+    # Your DeepSeek/Gemini/Claude call here
+    response = call_llm(
+        plan=plan,
+        hypotheses=context["hypotheses"],
+        skills=context["skill_heads"],
+        similar_fixes=context["retrieval"],
+    )
+    return [{"patch_text": response.patch, "summary": response.summary}]
 ```
 
 ## Safety Invariants
 
 The kernel enforces these **non-negotiable** invariants:
 
-1. **Serial Authority** — Controller executes one step at a time
-2. **Immutable Gating** — Gate cannot be bypassed or modified at runtime
-3. **Deterministic Validation** — Same input → same gate decision
-4. **Fail-Closed** — Any validation failure → reject
-5. **Command Allowlist** — Only pre-approved operations execute
+1. **Serial Authority** — One proposal at a time
+2. **Immutable Gating** — Gate cannot be bypassed
+3. **Deterministic Validation** — Same input → same decision
+4. **Fail-Closed** — Any error → reject
+5. **Command Allowlist** — Only approved operations
 6. **Path Restrictions** — No access outside workspace
 7. **Append-Only Logging** — Full audit trail
 
-## Learning Persists Across Runs
-
-The CI workflow saves learning state:
+## CI/CD
 
 ```yaml
-- uses: actions/cache@v4
-  with:
-    path: .rfsn_state
-    key: rfsn-learning-${{ github.ref_name }}
+# .github/workflows/bench.yml runs:
+1. Verify datasets exist
+2. Run benchmark with learning
+3. Cache .rfsn_state for cross-run improvement
+4. Upload results as artifacts
 ```
-
-State includes:
-
-- `.rfsn_state/failure_index.jsonl` — Past failures and fixes
-- `.rfsn_state/memory.jsonl` — Episode-level state
-- Bandit arm statistics (in-memory, checkpointed)
 
 ## Configuration
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `RFSN_BENCH_STRICT` | Enable strict mode (fail-fast) | `0` |
+| `RFSN_STRICT_BENCH` | Strict mode (fail on missing datasets) | `1` |
 | `RFSN_LOG_LEVEL` | Logging verbosity | `INFO` |
-| `RFSN_CACHE_DIR` | Cache directory | `.rfsn_cache` |
 | `DEEPSEEK_API_KEY` | DeepSeek API key | — |
 | `GEMINI_API_KEY` | Gemini API key | — |
 
 ## Tests
 
 ```bash
-# All tests
 pytest tests/ -v
-
-# Self-critique tests
 pytest tests/test_self_critique.py -v
-
-# Learning module tests
-pytest tests/ -k "bandit or thompson" -v
 ```
+
+## What's NOT This Repo
+
+This repo is **not**:
+
+- A sample task fallback (disabled in strict mode)
+- A loose policy filter (everything goes through PlanGate)
+- Two parallel stacks (unified to one authority path)
 
 ## Contributing
 
-1. **Never modify the gate** — All intelligence is upstream
-2. **Maintain determinism** — Gate decisions must be reproducible
-3. **Add tests** — New modules need comprehensive tests
-4. **Document invariants** — Safety properties must be explicit
+1. **Never modify PlanGate** — All intelligence is upstream
+2. **Route through GateAdapter** — No duplicate gate logic
+3. **Use episode_runner** — Single authority loop
+4. **Add tests** — New modules need tests
 
 ## License
 
