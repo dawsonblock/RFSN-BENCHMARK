@@ -15,15 +15,15 @@ import json
 import os
 import sys
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import Enum
-from pathlib import Path
-from typing import Any, Dict, List, Optional, Callable
+from typing import Any, Callable, Optional
 import logging
 
-from eval.dataset_loader import iter_tasks, load_task_by_id, SWEBenchTask
+from eval.dataset_loader import iter_tasks, load_task_by_id
 from eval.strictness import strict_benchmark_mode
-from orchestrator.episode_runner import run_one_task, RunResult
+from orchestrator.episode_runner import run_one_task
+from agent.llm_patcher import get_llm_patch_fn
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 logger = logging.getLogger(__name__)
@@ -49,8 +49,10 @@ class EvalResult:
     runtime: float
     status: TaskStatus
     test_output_tail: str = ""
+    gate_rejections: int = 0
+    security_violations: int = 0
     
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "instance_id": self.instance_id,
             "passed": self.passed,
@@ -58,37 +60,19 @@ class EvalResult:
             "runtime": self.runtime,
             "status": self.status.value,
             "test_output_tail": self.test_output_tail[-500:],
+            "gate_rejections": self.gate_rejections,
+            "security_violations": self.security_violations,
         }
-
-
-def create_stub_llm_patch_fn() -> Callable:
-    """
-    Create a stub LLM patch function.
-    
-    YOU MUST REPLACE THIS with your actual DeepSeek/Gemini patch generator.
-    
-    The function signature is:
-        llm_patch_fn(plan, context) -> list[dict]
-    
-    Each dict must have:
-        - patch_text: The unified diff patch
-        - summary: Short description
-    """
-    def stub_fn(plan, context) -> List[Dict[str, Any]]:
-        # This is a stub - replace with actual LLM call
-        logger.warning("Using stub LLM - no real patches will be generated!")
-        return []
-    return stub_fn
 
 
 def run_eval(
     dataset_name: str = "swebench_lite.jsonl",
-    task_ids: Optional[List[str]] = None,
+    task_ids: Optional[list[str]] = None,
     max_tasks: Optional[int] = None,
     llm_patch_fn: Optional[Callable] = None,
     max_attempts: int = 6,
     results_dir: str = "./eval_results",
-) -> List[EvalResult]:
+) -> list[EvalResult]:
     """
     Run SWE-bench evaluation.
     
@@ -104,12 +88,13 @@ def run_eval(
         List of EvalResult objects
     """
     if llm_patch_fn is None:
-        llm_patch_fn = create_stub_llm_patch_fn()
+        llm_patch_fn = get_llm_patch_fn("deepseek")
     
     # Load tasks
     if task_ids:
-        tasks = [load_task_by_id(dataset_name, tid) for tid in task_ids]
-        tasks = [t for t in tasks if t is not None]
+        # Filter None values from load_task_by_id
+        tasks_raw = [load_task_by_id(dataset_name, tid) for tid in task_ids]
+        tasks = [t for t in tasks_raw if t is not None]
     else:
         tasks = list(iter_tasks(dataset_name))
     
@@ -124,7 +109,7 @@ def run_eval(
     
     logger.info("Running %d tasks from %s", len(tasks), dataset_name)
     
-    results: List[EvalResult] = []
+    results: list[EvalResult] = []
     passed_count = 0
     
     for i, task in enumerate(tasks):
@@ -159,6 +144,8 @@ def run_eval(
                 runtime=runtime,
                 status=status,
                 test_output_tail=run_result.test_output[-500:] if run_result.test_output else "",
+                gate_rejections=getattr(run_result, "gate_rejections", 0),
+                security_violations=getattr(run_result, "security_violations", 0),
             )
             
         except Exception as e:
@@ -201,7 +188,7 @@ def run_eval(
     return results
 
 
-def main():
+def main() -> None:
     """CLI entry point."""
     parser = argparse.ArgumentParser(description="RFSN SWE-bench Evaluation")
     parser.add_argument("--dataset", default="swebench_lite.jsonl", help="Dataset file name")
@@ -209,6 +196,7 @@ def main():
     parser.add_argument("--max-tasks", type=int, help="Maximum tasks to run")
     parser.add_argument("--max-attempts", type=int, default=6, help="Max attempts per task")
     parser.add_argument("--results-dir", default="./eval_results", help="Results directory")
+    parser.add_argument("--model", default="deepseek", help="Model to use (deepseek/gemini)")
     parser.add_argument("--non-strict", action="store_true", help="Disable strict mode")
     
     args = parser.parse_args()
@@ -220,6 +208,7 @@ def main():
         dataset_name=args.dataset,
         task_ids=args.task_ids,
         max_tasks=args.max_tasks,
+        llm_patch_fn=get_llm_patch_fn(args.model),
         max_attempts=args.max_attempts,
         results_dir=args.results_dir,
     )

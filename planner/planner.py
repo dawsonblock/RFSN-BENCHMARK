@@ -1,7 +1,7 @@
 """Core planner implementation."""
 from __future__ import annotations
 from .spec import Plan, RepairStep
-from typing import Dict, Any
+from typing import Dict, Any, List
 import uuid
 
 
@@ -9,40 +9,62 @@ def generate_plan(task: Dict[str, Any], retrieved_memory: Dict[str, Any]) -> Pla
     """
     Deterministic plan generator wrapper.
     
-    LLM is allowed ONLY to fill content, not structure.
-    The structure is defined by the spec and enforced by the gate.
+    This upstream planner:
+    1. Analyzes failure type (via hypotheses in metadata/task)
+    2. Incorporates retrieved patterns
+    3. Outputs a structural plan for the LLM to follow
     """
     failing_files = task.get("failing_files", [])
     if not failing_files:
         failing_files = task.get("files", ["unknown.py"])
+        
+    task_desc = task.get("description", task.get("problem_statement", "unknown bug"))
+    
+    steps: List[RepairStep] = []
+    
+    # 1. Standard identification step
+    steps.append(RepairStep(
+        intent="Analyze failure and locate bug",
+        files=failing_files,
+        hypothesis="Bug is likely in the failing files or their dependencies"
+    ))
 
-    steps = [
-        RepairStep(
-            intent="identify failing logic",
+    # 2. Add retrieval-informed steps
+    retrieval_hits = retrieved_memory.get("similar_failures", [])
+    if retrieval_hits:
+        best_hit = retrieval_hits[0]
+        steps.append(RepairStep(
+            intent=f"Apply similar fix pattern: {best_hit.get('patch_summary', 'unknown')[:50]}...",
             files=failing_files,
-            hypothesis="logic mismatch with test expectations"
-        ),
-        RepairStep(
-            intent="apply minimal fix",
+            hypothesis=f"Failure matches known pattern (score: {best_hit.get('score', 0):.2f})"
+        ))
+    
+    # 3. Add hypothesis-driven steps (if available in task metadata)
+    hypotheses = task.get("hypotheses", [])
+    if hypotheses:
+        # If we have specific hypotheses (e.g. from Classifier), use the top one
+        top_h = hypotheses[0]
+        steps.append(RepairStep(
+            intent=f"Address {top_h.kind} error",
             files=failing_files,
-            hypothesis="boundary condition error"
-        )
-    ]
-
-    # Use retrieval context to inform plan if available
-    retrieval_hints = retrieved_memory.get("retrieval_hits", [])
-    if retrieval_hints:
-        # Add a step based on prior successful fixes
-        steps.insert(1, RepairStep(
-            intent="apply pattern from similar past fix",
+            hypothesis=top_h.reasoning
+        ))
+    else:
+        # Generic fix step
+        steps.append(RepairStep(
+            intent="Generate minimal fix",
             files=failing_files,
-            hypothesis=f"similar to: {retrieval_hints[0].get('patch_summary', 'prior fix')[:100]}"
+            hypothesis="Code logic needs correction"
         ))
 
     return Plan(
         task_id=str(uuid.uuid4()),
-        bug_summary=task.get("description", task.get("problem_statement", "unknown bug")),
+        bug_summary=task_desc,
         steps=steps,
-        confidence=0.35,
-        metadata={"source": "planner_v1", "retrieval_used": bool(retrieval_hints)}
+        confidence=0.5 if retrieval_hits else 0.3,
+        metadata={
+            "source": "planner_v2", 
+            "retrieval_count": len(retrieval_hits),
+            "hypotheses_count": len(hypotheses)
+        }
     )

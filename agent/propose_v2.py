@@ -10,9 +10,9 @@ The actual LLM patch generation is passed in as a callable.
 """
 from __future__ import annotations
 
-from typing import Dict, Any, List, Optional, Callable
-from dataclasses import dataclass
 import logging
+from dataclasses import dataclass
+from typing import Any, Callable
 
 from repair.classifier import classify_failure
 from skills.router import select_skill_heads
@@ -38,20 +38,20 @@ class PatchCandidate:
     """A candidate patch from the propose pipeline."""
     patch_text: str
     summary: str
-    metadata: Dict[str, Any]
+    metadata: dict[str, Any]
 
 
 @dataclass
 class UpstreamContext:
     """Context built by upstream intelligence modules."""
-    hypotheses: List[Any]
-    retrieval: Dict[str, Any]
-    skill_heads: List[Any]
+    hypotheses: list[Any]
+    retrieval: dict[str, Any]
+    skill_heads: list[Any]
     planner_name: str
 
 
 def build_upstream_context(
-    task: Dict[str, Any],
+    task: dict[str, Any],
     last_test_output: str,
 ) -> UpstreamContext:
     """
@@ -92,11 +92,11 @@ def build_upstream_context(
 
 
 def propose(
-    task: Dict[str, Any],
+    task: dict[str, Any],
     last_test_output: str,
-    llm_patch_fn: Callable[[Any, Dict[str, Any]], List[Dict[str, Any]]],
+    llm_patch_fn: Callable[[Any, dict[str, Any]], list[dict[str, Any]]],
     max_candidates: int = 6,
-) -> List[PatchCandidate]:
+) -> list[PatchCandidate]:
     """
     Generate patch candidates using upstream intelligence.
     
@@ -134,7 +134,7 @@ def propose(
     raw = llm_patch_fn(plan, llm_context)
     
     # Convert to PatchCandidate objects
-    candidates: List[PatchCandidate] = []
+    candidates: list[PatchCandidate] = []
     for r in raw[:max_candidates]:
         candidates.append(PatchCandidate(
             patch_text=r.get("patch_text", ""),
@@ -155,7 +155,7 @@ def learn_update(planner_name: str, success: bool, weight: float = 1.0) -> None:
     logger.debug("Updated planner %s: success=%s, weight=%.2f", planner_name, success, weight)
 
 
-def get_propose_stats() -> Dict[str, Any]:
+def get_propose_stats() -> dict[str, Any]:
     """Get statistics about the propose pipeline."""
     return {
         "planner_stats": _selector.get_statistics(),

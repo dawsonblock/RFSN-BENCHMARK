@@ -66,3 +66,8 @@ eval_results/
 
 # Ruff cache
 .ruff_cache/
+
+# Datasets
+datasets/*.jsonl
+datasets/*.arrow
+datasets/*.parquet

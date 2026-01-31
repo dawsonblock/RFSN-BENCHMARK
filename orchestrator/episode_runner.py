@@ -21,14 +21,13 @@ from typing import Dict, Any, List, Callable, Optional
 import time
 import subprocess
 import logging
-import os
+import logging
 
-from eval.repo_setup import RepoWorkspace, clone_repo, hard_reset_clean, apply_patch_text, cleanup_workspace
+from eval.repo_setup import clone_repo, hard_reset_clean, apply_patch_text, cleanup_workspace
 from eval.test_cmd import derive_test_command_for_repo
 
 from agent.gate_adapter import GateAdapter
 from agent.propose_v2 import propose as propose_v2, learn_update
-from learning.outcomes import Outcome, score
 from retrieval.failure_index import FailureRecord, FailureIndex
 
 logger = logging.getLogger(__name__)
@@ -42,6 +41,9 @@ class RunResult:
     attempts: int
     invalid: bool = False
     reason: str = ""
+    gate_rejections: int = 0
+    security_violations: int = 0
+
 
 
 def _run_cmd(cmd: List[str], cwd: str, timeout_s: int = 1200) -> tuple[int, str, float]:
@@ -84,6 +86,8 @@ def run_one_task(
     """
     gate = GateAdapter()
     failure_index = FailureIndex()
+    gate_rejections = 0
+    security_count = 0
     
     instance_id = task.get("instance_id", "unknown")
     logger.info("Starting task: %s", instance_id)
@@ -164,6 +168,9 @@ def run_one_task(
 
                 decision = gate.decide(state_snapshot, proposal)
                 if not decision.allowed:
+                    gate_rejections += 1
+                    if "security" in decision.reason.lower() or "violation" in decision.reason.lower():
+                        security_count += 1
                     logger.debug("Gate rejected: %s", decision.reason)
                     continue
 
@@ -197,10 +204,10 @@ def run_one_task(
                             "planner": planner_name,
                         },
                     ))
-                    return RunResult(passed=True, test_output=out, attempts=attempts)
+                    return RunResult(passed=True, test_output=out, attempts=attempts, gate_rejections=gate_rejections, security_violations=security_count)
 
         logger.info("FAIL: %s after %d attempts", instance_id, attempts)
-        return RunResult(passed=False, test_output=last_out, attempts=attempts)
+        return RunResult(passed=False, test_output=last_out, attempts=attempts, gate_rejections=gate_rejections, security_violations=security_count)
 
     finally:
         if cleanup:

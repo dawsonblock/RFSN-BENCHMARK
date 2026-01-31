@@ -1,49 +1,41 @@
 """
-Example: Basic SWE-bench Evaluation
+Example: Basic SWE-bench Evaluation (Unified v2)
 
-This example shows how to run a basic evaluation on SWE-bench tasks
-using the RFSN Benchmark framework.
+This example shows how to run a basic evaluation using the 
+RFSN Unified Evaluation Harness (run_v2).
 """
 
-import asyncio
 from pathlib import Path
+from eval.run_v2 import run_eval
 
-from eval.run import run_eval, EvalConfig
-from eval.swebench import load_tasks
-
-
-async def main():
+def main():
     """Run a basic SWE-bench evaluation."""
-    
-    # Configuration
-    config = EvalConfig(
-        dataset="swebench_lite",
-        max_tasks=5,  # Start small
-        output_dir=Path("runs"),
-        parallel_workers=1,  # Serial for debugging
-    )
-    
-    # Load tasks
-    tasks = load_tasks(
-        dataset=config.dataset,
-        max_tasks=config.max_tasks,
-    )
-    print(f"Loaded {len(tasks)} tasks")
+    print("Starting evaluation (RFSN v2)...")
     
     # Run evaluation
-    print("Starting evaluation...")
-    results = await run_eval(config)
+    results = run_eval(
+        dataset_name="swebench_lite.jsonl",
+        max_tasks=2,      # Small batch
+        max_attempts=3,   # Limited attempts
+        results_dir="./example_results",
+    )
     
     # Print summary
-    passed = sum(1 for r in results if r.success)
+    passed = sum(1 for r in results if r.passed)
+    total = len(results)
+    
     print(f"\n{'='*50}")
-    print(f"Results: {passed}/{len(results)} passed ({passed/len(results):.1%})")
+    print(f"Results: {passed}/{total} passed ({(passed/total*100) if total else 0:.1f}%)")
     print(f"{'='*50}")
     
     for result in results:
-        status = "✅" if result.success else "❌"
-        print(f"  {status} {result.task_id}: {result.status.value}")
-
+        status_icon = "✅" if result.passed else "❌"
+        # Access enum value correctly
+        status_str = result.status.value if hasattr(result.status, "value") else str(result.status)
+        print(f"  {status_icon} {result.instance_id}: {status_str} (Attempts: {result.attempts})")
+        
+        if not result.passed and result.test_output_tail:
+            print(f"    Error tail: {result.test_output_tail[:100]}...")
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    main()
