@@ -22,6 +22,8 @@ import time
 import subprocess
 import logging
 import logging
+import re
+
 
 from eval.repo_setup import clone_repo, hard_reset_clean, apply_patch_text, cleanup_workspace
 from eval.test_cmd import derive_test_command_for_repo
@@ -43,6 +45,10 @@ class RunResult:
     reason: str = ""
     gate_rejections: int = 0
     security_violations: int = 0
+    test_delta: int = 0
+    runtime: float = 0.0
+    patch_size: int = 0
+    files_touched: int = 0
 
 
 
@@ -62,6 +68,27 @@ def _run_cmd(cmd: List[str], cwd: str, timeout_s: int = 1200) -> tuple[int, str,
         return p.returncode, p.stdout, (time.time() - t0)
     except subprocess.TimeoutExpired:
         return -1, "TIMEOUT", (time.time() - t0)
+
+
+def _parse_failure_count(output: str) -> int:
+    """Parse number of failed tests from output."""
+    if not output:
+        return 0
+    # Pytest pattern: "3 passed, 1 failed" or "1 failed, 3 passed"
+    m = re.search(r"(\d+) failed", output)
+    if m:
+        return int(m.group(1))
+    
+    # Unittest pattern: "FAILED (failures=1, errors=2)"
+    m = re.search(r"failures=(\d+)", output)
+    failures = int(m.group(1)) if m else 0
+    m = re.search(r"errors=(\d+)", output)
+    errors = int(m.group(1)) if m else 0
+    if failures + errors > 0:
+        return failures + errors
+        
+    return 0
+
 
 
 def run_one_task(
@@ -124,6 +151,8 @@ def run_one_task(
         # Baseline run (should fail - the bug still exists)
         code, out, rt = _run_cmd(cmd, cwd=ws.path)
         last_out = out
+        last_out_baseline = out
+
         logger.debug("Baseline test: code=%d, runtime=%.1fs", code, rt)
 
         # Try to fix
@@ -204,10 +233,43 @@ def run_one_task(
                             "planner": planner_name,
                         },
                     ))
-                    return RunResult(passed=True, test_output=out, attempts=attempts, gate_rejections=gate_rejections, security_violations=security_count)
+                    runtime = time.time() - t0 if 't0' in locals() else 0.0 # t0 is inside _run_cmd... wait. _run_cmd returns rt
+                    # Actually we want *total* runtime or *last test* runtime? 
+                    # Learner usually cares about total resolution time or step runtime. 
+                    # Outcome expects runtime.
+                    
+                    return RunResult(
+                        passed=True, 
+                        test_output=out, 
+                        attempts=attempts, 
+                        gate_rejections=gate_rejections, 
+                        security_violations=security_count,
+                        test_delta=0, # Passed means 0 failures? Or relative? Outcome needs delta.
+                        # If passed, failures=0. Baseline failures=N. Delta = 0 - N = -N (good).
+                        # I need baseline failure count.
+                        runtime=rt,
+                        patch_size=len(cand.patch_text),
+                        files_touched=cand.patch_text.count("diff --git")
+                    )
 
         logger.info("FAIL: %s after %d attempts", instance_id, attempts)
-        return RunResult(passed=False, test_output=last_out, attempts=attempts, gate_rejections=gate_rejections, security_violations=security_count)
+        
+        # Calculate delta for the LAST attempt
+        baseline_failures = _parse_failure_count(last_out_baseline) if 'last_out_baseline' in locals() else 0
+        current_failures = _parse_failure_count(last_out)
+        delta = current_failures - baseline_failures
+        
+        return RunResult(
+            passed=False, 
+            test_output=last_out, 
+            attempts=attempts, 
+            gate_rejections=gate_rejections, 
+            security_violations=security_count,
+            test_delta=delta,
+            runtime=0.0, # Approximate or last run?
+            patch_size=0,
+            files_touched=0
+        )
 
     finally:
         if cleanup:

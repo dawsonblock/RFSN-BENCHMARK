@@ -1,84 +1,76 @@
-name: RFSN Learning Loop
+name: Upstream Learning Loop
 
 on:
+    push:
+        branches: [main]
+    schedule:
+        - cron: "0 0 * * *" # Daily learning run
     workflow_dispatch:
         inputs:
             dataset:
-                description: "SWE-bench dataset subset"
-                required: false
-                default: "lite"
-                type: choice
-                options:
-                    - lite
-                    - verified
-                    - full
-            workers:
-                description: "Number of parallel workers"
-                required: false
-                default: "4"
-                type: string
-    pull_request:
-        branches: [main]
-
-concurrency:
-    group: rfsn-learning-${{ github.ref }}
-    cancel-in-progress: false # Don't cancel learning runs
+                description: "Dataset to learn from"
+                default: "swebench_lite"
+            max_tasks:
+                description: "Number of tasks to attempt"
+                default: "25"
+            model:
+                description: "Model for patching"
+                default: "deepseek"
 
 jobs:
     learn:
         runs-on: ubuntu-latest
-        timeout-minutes: 120
+        permissions:
+            contents: write # To push updated state
 
         steps:
             - uses: actions/checkout@v4
+              with:
+                  fetch-depth: 0
 
             - name: Set up Python
               uses: actions/setup-python@v5
               with:
-                  python-version: "3.11"
+                  python-version: "3.10"
                   cache: "pip"
 
             - name: Install dependencies
               run: |
-                  pip install -e ".[dev]"
+                  pip install -r requirements.txt
+                  pip install datasets huggingface_hub
 
-            - name: Restore learning state
+            - name: Restore RFSN State
+              id: restore-state
               uses: actions/cache@v4
               with:
                   path: .rfsn_state
-                  key: rfsn-learning-${{ github.ref_name }}-${{ github.run_number }}
+                  key: rfsn-state-${{ github.run_id }}
                   restore-keys: |
-                      rfsn-learning-${{ github.ref_name }}-
-                      rfsn-learning-main-
-                      rfsn-learning-
+                      rfsn-state-
 
-            - name: Run agent episode
+            - name: Download Dataset
+              run: python scripts/download_hf.py
+
+            - name: Run Learning Loop
               env:
-                  RFSN_BENCH_STRICT: "1"
                   DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
-                  GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+                  RFSN_STRICT_BENCH: "0" # Allow learning on partial data
               run: |
-                  python -c "
-                  from orchestrator.loop_v2 import get_orchestrator_stats
-                  import json
+                  python scripts/run_learning_loop.py \
+                    --dataset ${{ inputs.dataset || 'swebench_lite' }} \
+                    --max_tasks ${{ inputs.max_tasks || '25' }} \
+                    --model ${{ inputs.model || 'deepseek' }} \
+                    --state_dir .rfsn_state
 
-                  stats = get_orchestrator_stats()
-                  print('=== Orchestrator State ===')
-                  print(json.dumps(stats, indent=2))
-                  "
-
-            - name: Save learning state
-              uses: actions/cache/save@v4
+            - name: Save RFSN State
               if: always()
+              uses: actions/cache/save@v4
               with:
                   path: .rfsn_state
-                  key: rfsn-learning-${{ github.ref_name }}-${{ github.run_number }}
+                  key: rfsn-state-${{ github.run_id }}
 
-            - name: Upload learning artifacts
+            - name: Upload Learning Report
               uses: actions/upload-artifact@v4
-              if: always()
               with:
-                  name: rfsn-learning-state
-                  path: |
-                      .rfsn_state/
-                  retention-days: 30
+                  name: learning-report
+                  path: .rfsn_state/reports/

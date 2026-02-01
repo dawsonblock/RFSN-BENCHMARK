@@ -9,7 +9,7 @@ import json
 from pathlib import Path
 from typing import List, Optional
 
-from .run import SWEBenchTask
+from .types import SWEBenchTask
 import os
 from rfsn_controller.structured_logging import get_logger
 
