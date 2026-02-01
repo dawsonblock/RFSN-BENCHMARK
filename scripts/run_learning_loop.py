@@ -98,40 +98,37 @@ def main() -> int:
         # Construct repo URL
         repo_url = f"https://github.com/{repo}.git" if "github.com" not in repo else repo
         
+        # Define callback to record each attempt
+        def record_attempt(res):
+            outcome = Outcome(
+                passed=res.passed,
+                test_delta=getattr(res, "test_delta", 0),
+                runtime=getattr(res, "runtime", 0.0),
+                error_message=res.reason or ""
+            )
+            learner.record_episode(
+                task_id=task_id,
+                repo=repo,
+                bucket=bucket,
+                planner=planner_name,
+                strategy=strategy,
+                template=template,
+                outcome=outcome,
+                patch_size=getattr(res, "patch_size", 0),
+                files_touched=getattr(res, "files_touched", 0),
+                extra={"dataset": args.dataset, "gate_rejections": res.gate_rejections},
+            )
+
         run_res = run_one_task(
             task=task_dict,
             repo_url=repo_url,
             llm_patch_fn=llm_patch_fn,
-            max_attempts=6
-        )
-
-        # Record learning update
-        # We construct Outcome from RunResult metrics
-        outcome = Outcome(
-            passed=run_res.passed,
-            test_delta=getattr(run_res, "test_delta", 0),
-            runtime=getattr(run_res, "runtime", 0.0),
-            error_message=run_res.reason
-        )
-        
-        patch_size = getattr(run_res, "patch_size", 0)
-        files_touched = getattr(run_res, "files_touched", 0)
-
-        reward = learner.record_episode(
-            task_id=task_id,
-            repo=repo,
-            bucket=bucket,
-            planner=planner_name,
-            strategy=strategy,
-            template=template,
-            outcome=outcome,
-            patch_size=patch_size,
-            files_touched=files_touched,
-            extra={"dataset": args.dataset, "gate_rejections": run_res.gate_rejections},
+            max_attempts=6,
+            record_callback=record_attempt
         )
         
         status = "SOLVED" if run_res.passed else "FAILED"
-        print(f"  Result: {status} (Reward: {reward:.3f})")
+        print(f"  Result: {status}")
 
         if run_res.passed:
             solved += 1

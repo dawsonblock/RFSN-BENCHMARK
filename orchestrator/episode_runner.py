@@ -97,6 +97,7 @@ def run_one_task(
     llm_patch_fn: Callable,
     max_attempts: int = 6,
     cleanup: bool = True,
+    record_callback: Optional[Callable[[RunResult], None]] = None,
 ) -> RunResult:
     """
     Run a single SWE-bench task with full SWE-bench procedure.
@@ -154,6 +155,7 @@ def run_one_task(
         last_out_baseline = out
 
         logger.debug("Baseline test: code=%d, runtime=%.1fs", code, rt)
+        baseline_failures = _parse_failure_count(last_out_baseline)
 
         # Try to fix
         attempts = 0
@@ -219,6 +221,29 @@ def run_one_task(
                 # Update learning
                 planner_name = cand.metadata.get("planner", "planner_v1")
                 learn_update(planner_name, passed)
+                
+                # Metrics for learner
+                current_failures = _parse_failure_count(out)
+                delta = current_failures - baseline_failures
+                patch_size = len(cand.patch_text)
+                files_touched = cand.patch_text.count("diff --git")
+                
+                res = RunResult(
+                    passed=passed,
+                    test_output=out,
+                    attempts=attempts,
+                    gate_rejections=gate_rejections,
+                    security_violations=security_count,
+                    test_delta=delta,
+                    runtime=rt,
+                    patch_size=patch_size,
+                    files_touched=files_touched,
+                    # We might want to pass error message if failed?
+                    reason=cand.summary if not passed else ""
+                )
+                
+                if record_callback:
+                    record_callback(res)
 
                 if passed:
                     logger.info("PASS: %s on attempt %d", instance_id, attempts)
@@ -233,24 +258,8 @@ def run_one_task(
                             "planner": planner_name,
                         },
                     ))
-                    runtime = time.time() - t0 if 't0' in locals() else 0.0 # t0 is inside _run_cmd... wait. _run_cmd returns rt
-                    # Actually we want *total* runtime or *last test* runtime? 
-                    # Learner usually cares about total resolution time or step runtime. 
-                    # Outcome expects runtime.
                     
-                    return RunResult(
-                        passed=True, 
-                        test_output=out, 
-                        attempts=attempts, 
-                        gate_rejections=gate_rejections, 
-                        security_violations=security_count,
-                        test_delta=0, # Passed means 0 failures? Or relative? Outcome needs delta.
-                        # If passed, failures=0. Baseline failures=N. Delta = 0 - N = -N (good).
-                        # I need baseline failure count.
-                        runtime=rt,
-                        patch_size=len(cand.patch_text),
-                        files_touched=cand.patch_text.count("diff --git")
-                    )
+                    return res
 
         logger.info("FAIL: %s after %d attempts", instance_id, attempts)
         

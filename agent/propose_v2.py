@@ -48,6 +48,7 @@ class UpstreamContext:
     retrieval: dict[str, Any]
     skill_heads: list[Any]
     planner_name: str
+    upstream_hints: dict[str, Any] = None
 
 
 def build_upstream_context(
@@ -79,15 +80,21 @@ def build_upstream_context(
     skill_heads = select_skill_heads({"repo_fingerprint": repo_fingerprint}, k=2)
     logger.debug("Selected skills: %s", [h.name for h in skill_heads])
 
-    # 4. Pick planner
-    planner_name = _selector.pick()
-    logger.debug("Selected planner: %s", planner_name)
+    # 4. Pick planner (override if upstream hint present)
+    upstream = task.get("_upstream", {})
+    if upstream.get("planner"):
+        planner_name = upstream["planner"]
+        logger.debug("Using upstream planner override: %s", planner_name)
+    else:
+        planner_name = _selector.pick()
+        logger.debug("Selected planner: %s", planner_name)
 
     return UpstreamContext(
         hypotheses=hypotheses,
         retrieval=retrieval,
         skill_heads=skill_heads,
         planner_name=planner_name,
+        upstream_hints=upstream,
     )
 
 
@@ -128,6 +135,7 @@ def propose(
         "retrieval": ctx.retrieval,
         "skill_heads": ctx.skill_heads,
         "planner_name": ctx.planner_name,
+        "upstream_hints": ctx.upstream_hints or {},
     }
 
     # Call LLM patch generator
