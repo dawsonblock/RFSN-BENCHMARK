@@ -212,6 +212,20 @@ gate_latency = Histogram(
     registry=REGISTRY
 )
 
+patches_applied = Counter(
+    'rfsn_patches_applied_total',
+    'Number of patches successfully applied',
+    ['phase'],
+    registry=REGISTRY
+)
+
+patches_rejected = Counter(
+    'rfsn_patches_rejected_total',
+    'Number of patches rejected',
+    ['reason', 'phase'],
+    registry=REGISTRY
+)
+
 # =============================================================================
 # Docker/Sandbox Metrics
 # =============================================================================

@@ -5,11 +5,10 @@ Uses sentence embeddings + FAISS for semantic similarity search across repo chun
 
 from __future__ import annotations
 
-import hashlib
 import pickle
 from dataclasses import dataclass
 from pathlib import Path
-from typing import List, Optional, Tuple
+from typing import List, Optional
 
 try:
     import numpy as np

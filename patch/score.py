@@ -9,10 +9,9 @@ Scores patches based on:
 from __future__ import annotations
 
 import ast
-import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import List, Optional, Set
+from typing import List, Optional
 
 from .types import Patch, PatchStatus
 from rfsn_controller.structured_logging import get_logger

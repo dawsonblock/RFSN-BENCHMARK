@@ -1,0 +1,16 @@
+{
+  "attempted": 1,
+  "bucket_rank": [],
+  "planner_bandit": {
+    "planner_v1": {
+      "a": 1.0,
+      "b": 1.0,
+      "count": 0,
+      "mean": 0.5
+    }
+  },
+  "solve_rate": 0.0,
+  "solved": 0,
+  "strategy_bandit": {},
+  "template_rank": []
+}

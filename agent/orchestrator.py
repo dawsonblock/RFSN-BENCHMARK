@@ -11,44 +11,39 @@ Into the main episode loop, replacing the abstract functions with real implement
 
 from __future__ import annotations
 
-import asyncio
-import os
 import sys
-import time
 from pathlib import Path
-from typing import Dict, Any, List, Optional
+from typing import List, Optional
 
+from .loop import run_episode
+from .profiles import Profile
 from .types import (
     AgentState,
-    Proposal,
-    GateDecision,
     ExecResult,
+    GateDecision,
     Phase,
-    Evidence,
+    Proposal,
 )
-from .profiles import Profile
-from .loop import run_episode
 
 # Add parent dir to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from localize import MultiLayerLocalizer, localize_issue
 from localize.types import LocalizationHit
+from patch.apply import PatchApplier
+from patch.gen import PatchGenerator
+from patch.minimize import PatchMinimizer
+from patch.score import score_patches
 from patch.types import (
+    PatchCandidate,
     PatchGenerationRequest,
     PatchStrategy,
-    PatchCandidate,
-    Patch,
 )
-from patch.gen import PatchGenerator
-from patch.score import score_patches, PatchScore
-from patch.minimize import minimize_patch, PatchMinimizer
-from patch.apply import apply_patch_safe, PatchApplier
-from runner.tests import run_staged_tests, TestStageConfig
-from triage.failures import triage_failure, FailureType
+from runner.tests import TestStageConfig, run_staged_tests
+from triage.failures import triage_failure
 
 try:
-    from llm.client import get_llm_client, LLMClient
+    from llm.client import LLMClient, get_llm_client
     from llm.patch_generator import LLMPatchGenerator
     LLM_AVAILABLE = True
 except ImportError:
@@ -733,7 +728,7 @@ def run_orchestrated_episode(
         ... )
     """
     from .profiles import load_profile
-    from .types import AgentState, RepoFingerprint, BudgetState, Phase
+    from .types import AgentState, BudgetState, Phase, RepoFingerprint
     
     # Load profile
     profile = load_profile(f"profiles/{profile_name}.yaml")

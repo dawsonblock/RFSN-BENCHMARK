@@ -16,21 +16,27 @@ All intelligence is upstream.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import Dict, Any, List, Callable, Optional
-import time
-import subprocess
-import logging
 import logging
 import re
-
-
-from eval.repo_setup import clone_repo, hard_reset_clean, apply_patch_text, cleanup_workspace
-from eval.test_cmd import derive_test_command_for_repo
+import subprocess
+import time
+from collections.abc import Callable
+from dataclasses import dataclass, field
+from typing import Any
 
 from agent.gate_adapter import GateAdapter
-from agent.propose_v2 import propose as propose_v2, learn_update
-from retrieval.failure_index import FailureRecord, FailureIndex
+from agent.propose_v2 import learn_update
+from agent.propose_v2 import propose as propose_v2
+from eval.repo_setup import apply_patch_text, cleanup_workspace, clone_repo, hard_reset_clean
+from eval.test_cmd import derive_test_command_for_repo
+from retrieval.failure_index import FailureIndex, FailureRecord
+
+# Performance optimization: use subprocess pool for faster command execution
+try:
+    from rfsn_controller.optimizations import get_subprocess_pool
+    _USE_SUBPROCESS_POOL = True
+except ImportError:
+    _USE_SUBPROCESS_POOL = False
 
 logger = logging.getLogger(__name__)
 
@@ -49,12 +55,34 @@ class RunResult:
     runtime: float = 0.0
     patch_size: int = 0
     files_touched: int = 0
+    metadata: dict[str, Any] = field(default_factory=dict)
 
 
 
-def _run_cmd(cmd: List[str], cwd: str, timeout_s: int = 1200) -> tuple[int, str, float]:
-    """Run a command and return (returncode, output, runtime)."""
+def _run_cmd(cmd: list[str], cwd: str, timeout_s: int = 1200) -> tuple[int, str, float]:
+    """Run a command and return (returncode, output, runtime).
+    
+    Uses subprocess pool when available for better performance.
+    """
     t0 = time.time()
+    
+    # Use subprocess pool if available (avoids repeated process spawn overhead)
+    if _USE_SUBPROCESS_POOL:
+        try:
+            pool = get_subprocess_pool()
+            result = pool.run_command(
+                argv=cmd,
+                cwd=cwd,
+                timeout=float(timeout_s),
+                capture_output=True,
+            )
+            output = result.stdout + (result.stderr or "")
+            return result.returncode, output, result.elapsed_time
+        except Exception as e:
+            logger.debug("Subprocess pool failed, falling back to direct: %s", e)
+            # Fall through to direct subprocess
+    
+    # Direct subprocess fallback
     try:
         p = subprocess.run(
             cmd,
@@ -92,12 +120,12 @@ def _parse_failure_count(output: str) -> int:
 
 
 def run_one_task(
-    task: Dict[str, Any],
+    task: dict[str, Any],
     repo_url: str,
     llm_patch_fn: Callable,
     max_attempts: int = 6,
     cleanup: bool = True,
-    record_callback: Optional[Callable[[RunResult], None]] = None,
+    record_callback: Callable[[RunResult], None] | None = None,
 ) -> RunResult:
     """
     Run a single SWE-bench task with full SWE-bench procedure.
@@ -159,7 +187,7 @@ def run_one_task(
 
         # Try to fix
         attempts = 0
-        for attempt_num in range(max_attempts):
+        for _attempt_num in range(max_attempts):
             attempts += 1
             logger.info("Attempt %d/%d for %s", attempts, max_attempts, instance_id)
 
@@ -239,7 +267,8 @@ def run_one_task(
                     patch_size=patch_size,
                     files_touched=files_touched,
                     # We might want to pass error message if failed?
-                    reason=cand.summary if not passed else ""
+                    reason=cand.summary if not passed else "",
+                    metadata=cand.metadata,
                 )
                 
                 if record_callback:
@@ -286,10 +315,10 @@ def run_one_task(
 
 
 def run_batch(
-    tasks: List[Dict[str, Any]],
+    tasks: list[dict[str, Any]],
     llm_patch_fn: Callable,
     max_attempts: int = 6,
-) -> Dict[str, RunResult]:
+) -> dict[str, RunResult]:
     """
     Run multiple tasks sequentially.
     

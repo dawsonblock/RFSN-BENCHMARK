@@ -272,7 +272,7 @@ class TestSubprocessPoolBackwardCompatibility:
     def test_acquire_release(self, pool: SubprocessPool) -> None:
         """Test acquire/release API for backward compatibility."""
         # Should be able to acquire
-        assert pool.acquire() == True
+        assert pool.acquire() is True
         assert pool.active_count == 1
         
         # Release should work

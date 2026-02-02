@@ -6,7 +6,6 @@ covering all hard fail conditions and soft warnings.
 
 from __future__ import annotations
 
-import pytest
 
 from rfsn_controller.gates.self_critique import (
     CritiqueResult,
@@ -14,7 +13,7 @@ from rfsn_controller.gates.self_critique import (
     critique_plan,
     validate_plan_json,
 )
-from rfsn_controller.gates.plan_gate import PlanGateConfig, DEFAULT_ALLOWED_STEP_TYPES
+from rfsn_controller.gates.plan_gate import DEFAULT_ALLOWED_STEP_TYPES
 
 
 class TestCritiqueResult:

@@ -6,12 +6,13 @@ This module handles loading and parsing SWE-bench tasks from various formats.
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 from typing import List, Optional
 
-from .types import SWEBenchTask
-import os
 from rfsn_controller.structured_logging import get_logger
+
+from .types import SWEBenchTask
 
 logger = get_logger(__name__)
 
@@ -170,7 +171,7 @@ The function returns an incorrect result or raises an exception.
 1. Call the function with test inputs
 2. Observe the incorrect output
             """.strip(),
-            test_patch=f"""
+            test_patch="""
 diff --git a/test_sample.py b/test_sample.py
 --- a/test_sample.py
 +++ b/test_sample.py

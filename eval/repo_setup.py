@@ -1,11 +1,12 @@
 """Repository setup for SWE-bench evaluation."""
 from __future__ import annotations
-from dataclasses import dataclass
-from typing import List
+
 import os
+import shutil
 import subprocess
 import tempfile
-import shutil
+from dataclasses import dataclass
+from typing import List
 
 
 @dataclass

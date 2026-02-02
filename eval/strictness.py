@@ -1,5 +1,6 @@
 """Strict benchmark mode enforcement."""
 from __future__ import annotations
+
 import os
 
 

@@ -7,10 +7,12 @@ Same agent, different constraints.
 """
 
 from __future__ import annotations
+
 from dataclasses import dataclass
-from typing import Any, Dict
-import yaml
 from pathlib import Path
+from typing import Any, Dict
+
+import yaml
 
 
 @dataclass(frozen=True)

@@ -8,7 +8,6 @@ to validate plans before submission to the safety gate.
 from rfsn_controller.gates.self_critique import (
     critique_plan,
     validate_plan_json,
-    CritiqueResult,
 )
 
 

@@ -3,19 +3,21 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import time
-from typing import Any, Dict, List
+from typing import Any
 
-from learning.swebench_learner import SWEBenchLearner, classify_bucket
-from retrieval.failure_index import FailureIndex
-from learning.outcomes import Outcome
+# =============================================================================
+# PERFORMANCE: Enable LLM response caching for repeated/similar prompts
+# =============================================================================
+os.environ.setdefault("RFSN_LLM_CACHE", "1")
 
-from eval.swebench import load_tasks
-from orchestrator.episode_runner import run_one_task
 from agent.llm_patcher import get_llm_patch_fn
+from eval.swebench import load_tasks
+from learning.outcomes import Outcome
+from learning.swebench_learner import SWEBenchLearner, classify_bucket
+from orchestrator.episode_runner import run_one_task
 
 
-def write_report(path: str, summary: Dict[str, Any]) -> None:
+def write_report(path: str, summary: dict[str, Any]) -> None:
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, "w", encoding="utf-8") as f:
         json.dump(summary, f, indent=2, sort_keys=True)
@@ -33,7 +35,10 @@ def write_report(path: str, summary: Dict[str, Any]) -> None:
 
 def main() -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--dataset", default="swebench_lite", choices=["swebench_lite", "swebench_verified", "swebench_full"])
+    ap.add_argument(
+        "--dataset", default="swebench_lite",
+        choices=["swebench_lite", "swebench_verified", "swebench_full"]
+    )
     ap.add_argument("--max_tasks", type=int, default=25)
     ap.add_argument("--model", default="deepseek", help="Model to use for patching")
     ap.add_argument("--workers", type=int, default=1)  # Serial by default
@@ -60,19 +65,7 @@ def main() -> int:
         
         task_id = str(task_dict.get("task_id") or task_dict.get("instance_id") or f"task_{attempted}")
         repo = str(task_dict.get("repo") or task_dict.get("repo_name") or "unknown")
-        test_output_start = str(task_dict.get("problem_statement") or "") # We classify based on problem statement or logs? 
-        # User said: "Classify failure into a SWE-bench taxonomy bucket (test failure...)" from test output text.
-        # But initially we only have problem statement + test patch.
-        # We run baseline tests inside run_one_task.
-        # But we need to classify BEFORE proposing?
-        # classify_bucket takes `test_output`. 
-        # In run_one_task, baseline is run early.
-        # Ideally, we should run baseline first, then classify?
-        # But learner chooses strategy BEFORE loop.
-        # We can pass empty string or problem statement?
-        # User code: `test_output = str(t.get("test_output") or t.get("fail_log") or "")`
-        # SWE-bench tasks often come with fail logs. If not, we might be flying blind initially.
-        # I'll use problem statement for now if fail_log is missing.
+        _unused_test_output = str(task_dict.get("problem_statement") or "")
         initial_log = str(task_dict.get("fail_log") or "")
         bucket = classify_bucket(initial_log)
 
@@ -98,33 +91,45 @@ def main() -> int:
         # Construct repo URL
         repo_url = f"https://github.com/{repo}.git" if "github.com" not in repo else repo
         
-        # Define callback to record each attempt
-        def record_attempt(res):
-            outcome = Outcome(
-                passed=res.passed,
-                test_delta=getattr(res, "test_delta", 0),
-                runtime=getattr(res, "runtime", 0.0),
-                error_message=res.reason or ""
-            )
-            learner.record_episode(
-                task_id=task_id,
-                repo=repo,
-                bucket=bucket,
-                planner=planner_name,
-                strategy=strategy,
-                template=template,
-                outcome=outcome,
-                patch_size=getattr(res, "patch_size", 0),
-                files_touched=getattr(res, "files_touched", 0),
-                extra={"dataset": args.dataset, "gate_rejections": res.gate_rejections},
-            )
+        def make_record_callback(
+            _task_id: str, _repo: str, _bucket: str, _planner_name: str, _strategy: str, _template: str
+        ):
+            def record_attempt(res):
+                critique_score = 0.0
+                if hasattr(res, "metadata") and "critique" in res.metadata:
+                    critique_score = res.metadata["critique"].get("score", 0.0)
+
+                outcome = Outcome(
+                    passed=res.passed,
+                    test_delta=getattr(res, "test_delta", 0),
+                    runtime=getattr(res, "runtime", 0.0),
+                    error_message=res.reason or "",
+                    critique_score=critique_score
+                )
+                learner.record_episode(
+                    task_id=_task_id,
+                    repo=_repo,
+                    bucket=_bucket,
+                    planner=_planner_name,
+                    strategy=_strategy,
+                    template=_template,
+                    outcome=outcome,
+                    patch_size=getattr(res, "patch_size", 0),
+                    files_touched=getattr(res, "files_touched", 0),
+                    extra={"dataset": args.dataset, "gate_rejections": res.gate_rejections},
+                )
+            return record_attempt
+        
+        record_callback = make_record_callback(
+            task_id, repo, bucket, planner_name, strategy, template
+        )
 
         run_res = run_one_task(
             task=task_dict,
             repo_url=repo_url,
             llm_patch_fn=llm_patch_fn,
             max_attempts=6,
-            record_callback=record_attempt
+            record_callback=record_callback
         )
         
         status = "SOLVED" if run_res.passed else "FAILED"

@@ -10,7 +10,6 @@ Classifies and analyzes test failures to determine:
 
 from __future__ import annotations
 
-import re
 from dataclasses import dataclass
 from enum import Enum
 from typing import List, Optional, Dict, Any

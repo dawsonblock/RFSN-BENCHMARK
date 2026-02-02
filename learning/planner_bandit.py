@@ -1,6 +1,8 @@
 """Planner bandit for selecting among multiple planners."""
 from __future__ import annotations
-from typing import Dict, Any, Callable
+
+from typing import Any, Callable, Dict
+
 from .thompson import ThompsonBandit
 
 # Type alias for planner functions

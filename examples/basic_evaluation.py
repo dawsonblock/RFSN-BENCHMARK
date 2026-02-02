@@ -5,7 +5,6 @@ This example shows how to run a basic evaluation using the
 RFSN Unified Evaluation Harness (run_v2).
 """
 
-from pathlib import Path
 from eval.run_v2 import run_eval
 
 def main():

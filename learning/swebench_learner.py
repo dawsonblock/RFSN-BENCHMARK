@@ -4,12 +4,12 @@ import json
 import os
 import time
 from dataclasses import dataclass
-from typing import Any, Dict, List, Tuple, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
+from .epsgreedy_persist import PersistentStrategyBandit
 from .outcomes import Outcome, score_patch_quality
 from .state_store import atomic_write_json, read_json
 from .thompson_persist import PersistentThompsonBandit
-from .epsgreedy_persist import PersistentStrategyBandit
 
 
 @dataclass(frozen=True)

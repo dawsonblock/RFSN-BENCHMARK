@@ -1,6 +1,8 @@
 
 import unittest
-from retrieval.embeddings import hash_embed, batch_cosine
+
+from retrieval.embeddings import batch_cosine, hash_embed
+
 
 class TestEmbeddings(unittest.TestCase):
     def test_dimensions(self):

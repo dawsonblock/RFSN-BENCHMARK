@@ -23,12 +23,12 @@ from __future__ import annotations
 import logging
 import time
 from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, List, Optional
+from typing import Callable, List, Optional
 
 from ..event_bus import SimpleEventBus
 from ..cgw_state import CGWRuntime
 from ..thalamic_gate import ThalamusGate
-from ..types import Candidate, ForcedCandidate, SelectionReason, SelfModel
+from ..types import ForcedCandidate, SelfModel
 from ..monitors import SerialityMonitor
 
 from .action_types import (

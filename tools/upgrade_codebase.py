@@ -11,7 +11,7 @@ This script applies automated fixes for:
 import re
 import sys
 from pathlib import Path
-from typing import List, Tuple
+from typing import Tuple
 
 
 def fix_print_to_logging(content: str, filename: str) -> Tuple[str, int]:
@@ -73,7 +73,7 @@ def fix_print_to_logging(content: str, filename: str) -> Tuple[str, int]:
                 import_lines.append(line)
                 import_lines.append('from rfsn_controller.structured_logging import get_logger')
                 import_lines.append('')
-                import_lines.append(f'logger = get_logger(__name__)')
+                import_lines.append('logger = get_logger(__name__)')
                 import_lines.append('')
                 in_imports = False
             else:
@@ -259,7 +259,7 @@ def main():
             print(f"  ✓ Format fixes: {stats['format_fixes']}")
             print(f"  ✓ Security fixes: {stats['security_fixes']}")
         else:
-            print(f"  - No changes needed")
+            print("  - No changes needed")
         print()
     
     print("=" * 60)

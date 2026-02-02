@@ -27,7 +27,6 @@ import logging
 import sys
 import time
 import uuid
-from pathlib import Path
 from typing import Optional
 
 # Configure logging early
@@ -172,7 +171,7 @@ def setup_logging(verbosity: int) -> None:
 
 def run_agent(args: argparse.Namespace) -> int:
     """Run the CGW coding agent."""
-    from .config import CGWConfig, create_default_config
+    from .config import CGWConfig
     from .coding_agent_runtime import CodingAgentRuntime, AgentConfig
     
     # Load config

@@ -10,10 +10,9 @@ from __future__ import annotations
 
 from typing import Optional
 
-from .event_bus import SimpleEventBus
 from .thalamic_gate import ThalamusGate
 from .cgw_state import CGWRuntime
-from .types import Candidate, ForcedCandidate, SelfModel, SelectionReason
+from .types import SelfModel
 
 
 class Runtime:

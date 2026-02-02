@@ -63,7 +63,10 @@ def get_llm_patch_fn(model_name: str = "deepseek") -> Any:
             else:
                 # Fallback / Mock
                 logger.warning(f"Model {model_name} not available. Using dummy.")
-                return []
+                return [{
+                    "summary": "Mock patch for testing",
+                    "patch_text": "diff --git a/mock_test_file.txt b/mock_test_file.txt\nnew file mode 100644\nindex 0000000..e69de29\n--- /dev/null\n+++ b/mock_test_file.txt\n@@ -0,0 +1 @@\n+Mock test content"
+                }]
         except Exception as e:
             logger.error(f"LLM call failed: {e}")
             return []
@@ -87,7 +90,7 @@ def _build_prompt(plan: Any, context: dict[str, Any]) -> str:
         parts.append("# REPAIR ANALYSIS")
         parts.append("Our analysis suggests the following bug types:")
         for h in hypotheses:
-            parts.append(f"- [{h.confidence:.2f}] {h.kind.upper()}: {h.reasoning}")
+            parts.append(f"- {h.kind.upper()}: {h.rationale}")
         parts.append("")
         
     # --- SKILL INSTRUCTIONS (from Router) ---
@@ -119,6 +122,12 @@ def _build_prompt(plan: Any, context: dict[str, Any]) -> str:
             parts.append(f"Context: {item.get('signature', '')[:200]}...")
             parts.append(f"Fix Strategy: {item.get('patch_summary', '')}")
             parts.append("")
+
+    # --- CRITIQUE FEEDBACK ---
+    if "critique_feedback" in context:
+        parts.append("# CRITIQUE FEEDBACK")
+        parts.append(context["critique_feedback"])
+        parts.append("")
 
     # --- INSTRUCTIONS ---
     parts.append("# INSTRUCTIONS")

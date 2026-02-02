@@ -1,9 +1,10 @@
 """SWE-bench dataset loader with strict mode enforcement."""
 from __future__ import annotations
-from dataclasses import dataclass
-from typing import Iterator, Optional, Dict, Any
+
 import json
 import os
+from dataclasses import dataclass
+from typing import Any, Dict, Iterator, Optional
 
 from .strictness import strict_benchmark_mode
 

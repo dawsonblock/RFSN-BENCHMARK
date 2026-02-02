@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Dict, Any
+from typing import Any, Dict
 
 from .bandit import StrategyBandit
 from .state_store import atomic_write_json, read_json

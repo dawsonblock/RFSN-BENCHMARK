@@ -13,13 +13,12 @@ All learning lives OUTSIDE these contracts. The gate is deterministic.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from enum import Enum
-from typing import Any, Dict, List, Optional, Tuple, Literal
 import hashlib
 import json
 import time
-
+from dataclasses import dataclass, field
+from enum import Enum
+from typing import Any, Dict, List, Literal, Optional, Tuple
 
 # =========================
 # Phases (serial state machine)

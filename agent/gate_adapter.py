@@ -4,9 +4,10 @@ This module wraps PlanGate to provide a unified interface for all
 evaluation and execution paths. No duplicate 'agent gate' logic allowed.
 """
 from __future__ import annotations
+
+import logging
 from dataclasses import dataclass, field
 from typing import Any, Dict, Optional
-import logging
 
 from rfsn_controller.gates.plan_gate import PlanGate, PlanGateConfig, PlanGateError, StepGateError
 

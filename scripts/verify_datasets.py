@@ -1,7 +1,7 @@
 """Dataset verification script."""
 from __future__ import annotations
+
 import os
-import sys
 
 REQUIRED_DATASETS = [
     "datasets/swebench_lite.jsonl",

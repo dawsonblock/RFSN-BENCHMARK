@@ -16,18 +16,17 @@ from __future__ import annotations
 
 import asyncio
 import json
-import os
 import shutil
 import subprocess  # legacy; avoid direct use (see _run_argv)
 import time
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, List, Optional
 
 from agent.loop import run_episode
-from agent.profiles import Profile, load_profile
-from agent.types import AgentState, Phase, Proposal
+from agent.profiles import load_profile
+from agent.types import AgentState, Phase
 from memory.log import append_event
 from rfsn_controller.structured_logging import get_logger
 
@@ -267,7 +266,7 @@ class EvalRunner:
             )
         
         # Initialize agent state
-        from agent.types import RepoFingerprint, BudgetState
+        from agent.types import BudgetState, RepoFingerprint
         
         repo = RepoFingerprint(
             repo_id=f"{task.repo}@{task.base_commit}",
@@ -304,7 +303,7 @@ class EvalRunner:
         
         try:
             # Import DeepSeek agent functions
-            from agent.deepseek_agent import propose, gate, execute
+            from agent.deepseek_agent import execute, gate, propose
             
             # Run agent episode (the inner loop)
             final_state = run_episode(

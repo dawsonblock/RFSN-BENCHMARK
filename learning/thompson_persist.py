@@ -1,10 +1,9 @@
 from __future__ import annotations
 
-from dataclasses import asdict
-from typing import Dict, Any
+from typing import Any, Dict
 
-from .thompson import ThompsonBandit, BetaArm
 from .state_store import atomic_write_json, read_json
+from .thompson import BetaArm, ThompsonBandit
 
 
 class PersistentThompsonBandit(ThompsonBandit):

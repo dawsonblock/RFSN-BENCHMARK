@@ -1,12 +1,13 @@
 """Basic orchestrator loop - simple integration example."""
 from __future__ import annotations
 
-from typing import Dict, Any, Callable, List
-from planner.planner import generate_plan
-from search.patch_search import search_patches
+from typing import Any, Callable, Dict, List
+
 from learning.bandit import StrategyBandit
 from learning.outcomes import Outcome, score
 from memory.store import MemoryStore
+from planner.planner import generate_plan
+from search.patch_search import search_patches
 
 # Global state (for basic usage)
 bandit = StrategyBandit()

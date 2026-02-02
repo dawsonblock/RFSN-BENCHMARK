@@ -1,6 +1,6 @@
 """Beam search for patch exploration."""
 from __future__ import annotations
-from typing import List, Callable, Any, TypeVar
+from typing import List, Callable, TypeVar
 
 T = TypeVar("T")
 

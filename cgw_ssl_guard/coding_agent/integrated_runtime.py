@@ -20,11 +20,11 @@ from __future__ import annotations
 import logging
 import time
 import uuid
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Union
 
-from .action_types import ActionPayload, CodingAction, CycleResult, ExecutionResult
+from .action_types import ActionPayload, CycleResult
 from .coding_agent_runtime import CodingAgentRuntime, AgentConfig, AgentResult
 from .config import CGWConfig, load_config
 

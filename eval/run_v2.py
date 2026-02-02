@@ -12,18 +12,18 @@ from __future__ import annotations
 
 import argparse
 import json
+import logging
 import os
 import sys
 import time
 from dataclasses import dataclass
 from enum import Enum
 from typing import Any, Callable, Optional
-import logging
 
+from agent.llm_patcher import get_llm_patch_fn
 from eval.dataset_loader import iter_tasks, load_task_by_id
 from eval.strictness import strict_benchmark_mode
 from orchestrator.episode_runner import run_one_task
-from agent.llm_patcher import get_llm_patch_fn
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 logger = logging.getLogger(__name__)

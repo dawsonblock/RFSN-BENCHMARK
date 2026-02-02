@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import hashlib
 import time
-from typing import Optional, Tuple, Union
+from typing import Optional, Union
 
 from .event_bus import SimpleEventBus
 from .types import (

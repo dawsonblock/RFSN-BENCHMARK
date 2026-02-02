@@ -12,7 +12,7 @@ import difflib
 from pathlib import Path
 from typing import List, Optional
 
-from .types import Patch, FileDiff, PatchStatus
+from .types import Patch, FileDiff
 from rfsn_controller.structured_logging import get_logger
 
 logger = get_logger(__name__)

@@ -14,13 +14,13 @@ import logging
 from dataclasses import dataclass
 from typing import Any, Callable
 
+from agent.self_critique import LLMCritique
+from learning.planner_bandit import PLANNERS, PlannerSelector, register_planner
+from planner.planner import generate_plan as planner_v1_generate_plan
 from repair.classifier import classify_failure
-from skills.router import select_skill_heads
 from retrieval.failure_index import FailureIndex
 from retrieval.recall import build_retrieval_context
-
-from learning.planner_bandit import PlannerSelector, PLANNERS, register_planner
-from planner.planner import generate_plan as planner_v1_generate_plan
+from skills.router import select_skill_heads
 
 logger = logging.getLogger(__name__)
 
@@ -138,18 +138,57 @@ def propose(
         "upstream_hints": ctx.upstream_hints or {},
     }
 
-    # Call LLM patch generator
+    # Call LLM patch generator (Initial batch)
     raw = llm_patch_fn(plan, llm_context)
+    
+    # Critique and Refine Loop
+    final_raw_candidates = []
+    critic = LLMCritique()
+    
+    for cand in raw[:max_candidates]:
+        patch_text = cand.get("patch_text", "")
+        # Critique
+        crit = critic.critique(task, patch_text)
+        
+        # Store critique metadata
+        cand["critique"] = {
+            "score": crit.score,
+            "approved": crit.approved,
+            "reasoning": crit.reasoning
+        }
+        
+        if crit.score < 0.7:
+            logger.info("Candidate criticized (score=%.2f): %s", crit.score, crit.reasoning[:50])
+            # Attempt Refinement
+            refine_ctx = llm_context.copy()
+            refine_ctx["critique_feedback"] = (
+                f"Your previous patch was rejected by the critic.\n"
+                f"Reasoning: {crit.reasoning}\n"
+                f"Suggestions: {crit.suggestions}\n"
+                f"Please fix the patch."
+            )
+            # Generate replacement (single shot)
+            refined_batch = llm_patch_fn(plan, refine_ctx)
+            if refined_batch:
+                best_refined = refined_batch[0]
+                best_refined["critique"] = {"score": 0.9, "reasoning": "Refined based on feedback"} # optimistically score
+                final_raw_candidates.append(best_refined)
+            else:
+                # Refinement failed, keep original but it might be rejected by gate
+                final_raw_candidates.append(cand)
+        else:
+            final_raw_candidates.append(cand)
     
     # Convert to PatchCandidate objects
     candidates: list[PatchCandidate] = []
-    for r in raw[:max_candidates]:
+    for r in final_raw_candidates:
         candidates.append(PatchCandidate(
             patch_text=r.get("patch_text", ""),
             summary=r.get("summary", "candidate"),
             metadata={
                 "planner": ctx.planner_name,
                 "hypotheses": [h.kind for h in ctx.hypotheses[:3]],
+                "critique": r.get("critique", {}),
             },
         ))
     

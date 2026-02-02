@@ -19,11 +19,10 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from rfsn_controller.structured_logging import get_logger
-
 # Import Unified Harness
-from eval.run_v2 import run_eval, EvalResult
+from eval.run_v2 import run_eval
 from eval.strictness import strict_benchmark_mode
+from rfsn_controller.structured_logging import get_logger
 
 logger = get_logger(__name__)
 

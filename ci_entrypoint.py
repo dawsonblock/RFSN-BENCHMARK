@@ -19,10 +19,15 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+# =============================================================================
+# PERFORMANCE: Enable LLM response caching for repeated/similar prompts
+# =============================================================================
+os.environ.setdefault("RFSN_LLM_CACHE", "1")
+
 from rfsn_controller.structured_logging import get_logger
 
 # Import Unified Harness
-from eval.run_v2 import run_eval, EvalResult
+from eval.run_v2 import run_eval
 from eval.strictness import strict_benchmark_mode
 
 logger = get_logger(__name__)

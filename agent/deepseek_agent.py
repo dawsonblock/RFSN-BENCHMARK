@@ -13,14 +13,14 @@ import subprocess  # legacy; avoid direct use (see _run_argv)
 import tempfile
 from pathlib import Path
 
+from agent.profiles import Profile
 from agent.types import (
     AgentState,
-    Proposal,
-    GateDecision,
     ExecResult,
+    GateDecision,
     Phase,
+    Proposal,
 )
-from agent.profiles import Profile
 
 # Try to import the DeepSeek client
 try:
@@ -195,7 +195,7 @@ def _build_prompt(profile: Profile, state: AgentState) -> str:
     if state.phase == Phase.PATCH_CANDIDATES:
         last_contents = state.notes.get("last_file_contents", {})
         if last_contents:
-            source_files = [f for f in last_contents.keys() if not '/test' in f and not 'test_' in f]
+            source_files = [f for f in last_contents.keys() if '/test' not in f and 'test_' not in f]
             if source_files:
                 main_file = source_files[0]
                 parts.append(f"\n# 🎯 FILE TO EDIT: {main_file}")
@@ -224,7 +224,7 @@ def _build_prompt(profile: Profile, state: AgentState) -> str:
     
     # Localization hits - files that likely need changes
     if state.localization_hits:
-        source_hits = [h for h in state.localization_hits if not 'test' in h.get('file', '').lower()]
+        source_hits = [h for h in state.localization_hits if 'test' not in h.get('file', '').lower()]
         if source_hits:
             parts.append("\n# 📍 LIKELY BUG LOCATIONS")
             for hit in source_hits[:5]:
@@ -261,7 +261,7 @@ def _build_prompt(profile: Profile, state: AgentState) -> str:
     # Outcome learning hints - show similar past patches
     if "last_diff" in state.notes:
         try:
-            from agent.outcome_learning import predict_patch_success, get_outcome_learner
+            from agent.outcome_learning import get_outcome_learner, predict_patch_success
             last_diff = state.notes["last_diff"]
             pred = predict_patch_success(last_diff)
             if pred < 0.3:

@@ -268,7 +268,8 @@ class NgramHashMapping:
         multipliers = self.layer_multipliers[layer_id]
 
         def shift_k(k: int) -> np.ndarray:
-            if k == 0: return x
+            if k == 0:
+                return x
             shifted = np.pad(x, ((0, 0), (k, 0)),
                                 mode='constant', constant_values=self.pad_id)[:, :T]
             return shifted

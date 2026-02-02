@@ -1,7 +1,8 @@
 """Download SWE-bench datasets using Hugging Face datasets library."""
 import os
+
 from datasets import load_dataset
-import pandas as pd
+
 
 def main():
     os.makedirs("datasets", exist_ok=True)

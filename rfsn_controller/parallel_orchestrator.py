@@ -29,19 +29,17 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
-import logging
-import os
 import shutil
 import tempfile
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from rfsn_controller.structured_logging import get_logger
 
 if TYPE_CHECKING:
-    from eval.run import EvalResult, SWEBenchTask, TaskStatus
+    from eval.run import SWEBenchTask
 
 logger = get_logger(__name__)
 
@@ -195,7 +193,7 @@ class ParallelOrchestrator:
         Returns:
             List of results from this worker.
         """
-        from eval.run import EvalConfig, EvalRunner, TaskStatus
+        from eval.run import EvalConfig, EvalRunner
         
         results = []
         

@@ -20,9 +20,9 @@ from __future__ import annotations
 import logging
 import subprocess
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Protocol
+from typing import Any, Callable, Dict, Optional, Protocol
 
 from .action_types import (
     ActionPayload,

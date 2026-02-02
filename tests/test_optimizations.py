@@ -94,7 +94,7 @@ class TestFileCache:
             for filepath in files:
                 try:
                     Path(filepath).unlink()
-                except:
+                except Exception:
                     pass
 
 
@@ -193,7 +193,7 @@ class TestBatchFileOps:
             for filepath in files:
                 try:
                     Path(filepath).unlink()
-                except:
+                except Exception:
                     pass
     
     @pytest.mark.asyncio
@@ -219,7 +219,7 @@ class TestBatchFileOps:
             for filepath in files:
                 try:
                     Path(filepath).unlink()
-                except:
+                except Exception:
                     pass
     
     def test_batch_read_missing_files(self):
@@ -275,5 +275,5 @@ class TestOptimizationIntegration:
             for filepath in files:
                 try:
                     Path(filepath).unlink()
-                except:
+                except Exception:
                     pass

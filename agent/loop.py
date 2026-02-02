@@ -13,12 +13,13 @@ Serial authority: ONE proposal at a time, always gated.
 
 from __future__ import annotations
 
-from typing import Callable, Dict, Any
 import time
+from typing import Any, Callable, Dict
 
-from .types import AgentState, Proposal, GateDecision, ExecResult, LedgerEvent, Phase
-from .profiles import Profile
 from memory.log import append_event
+
+from .profiles import Profile
+from .types import AgentState, ExecResult, GateDecision, LedgerEvent, Phase, Proposal
 
 try:
     from rfsn_controller.structured_logging import get_logger

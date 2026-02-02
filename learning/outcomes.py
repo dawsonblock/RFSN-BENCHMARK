@@ -1,5 +1,6 @@
 """Outcome types and scoring."""
 from __future__ import annotations
+
 from dataclasses import dataclass
 
 
@@ -10,6 +11,7 @@ class Outcome:
     test_delta: int  # negative = fewer failures
     runtime: float
     error_message: str = ""
+    critique_score: float = 0.0
 
 
 def score(outcome: Outcome) -> float:

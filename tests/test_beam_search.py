@@ -2,13 +2,11 @@
 
 from __future__ import annotations
 
-from typing import Any
 
 import pytest
 
 from rfsn_controller.planner_v2.beam_search import (
     BeamSearchConfig,
-    BeamSearcher,
     BeamSearchResult,
     Candidate,
     create_beam_searcher,

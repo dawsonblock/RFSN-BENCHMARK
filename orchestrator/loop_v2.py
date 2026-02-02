@@ -12,18 +12,17 @@ The gate remains untouched - all intelligence is upstream.
 """
 from __future__ import annotations
 
-from typing import Dict, Any, Callable, List
+from typing import Any, Callable, Dict, List
 
-from repair.classifier import classify_failure
-from skills.router import select_skill_heads
-from retrieval.failure_index import FailureIndex, FailureRecord
-from retrieval.recall import build_retrieval_context
-
-from learning.planner_bandit import PlannerSelector, register_planner, PLANNERS
 from learning.outcomes import Outcome, score
+from learning.planner_bandit import PLANNERS, PlannerSelector, register_planner
 
 # Import default planner - register it
 from planner.planner import generate_plan as planner_v1_generate_plan
+from repair.classifier import classify_failure
+from retrieval.failure_index import FailureIndex, FailureRecord
+from retrieval.recall import build_retrieval_context
+from skills.router import select_skill_heads
 
 # Register default planner
 register_planner("planner_v1", planner_v1_generate_plan)

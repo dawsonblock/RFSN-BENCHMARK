@@ -1,6 +1,7 @@
 """Test command derivation for SWE-bench tasks."""
 from __future__ import annotations
-from typing import List, Dict, Any, Optional
+
+from typing import Any, Dict, List, Optional
 
 
 def derive_test_command(hints: Optional[Dict[str, Any]]) -> List[str]:

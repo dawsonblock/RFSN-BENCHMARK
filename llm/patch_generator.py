@@ -8,11 +8,9 @@ from __future__ import annotations
 
 import asyncio
 import re
-from pathlib import Path
 from typing import List, Optional, Dict, Any
 
-from patch.types import Patch, PatchCandidate, PatchStrategy, PatchStatus, FileDiff
-from localize.types import LocalizationHit
+from patch.types import Patch, PatchStrategy, PatchStatus, FileDiff
 from rfsn_controller.structured_logging import get_logger
 
 logger = get_logger(__name__)

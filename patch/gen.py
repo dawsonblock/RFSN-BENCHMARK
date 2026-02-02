@@ -6,7 +6,6 @@ Now includes real LLM integration for intelligent patch generation.
 
 from __future__ import annotations
 
-import asyncio
 import hashlib
 import time
 from pathlib import Path
